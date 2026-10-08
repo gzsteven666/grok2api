@@ -2,6 +2,9 @@ export interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
   KV_CACHE: KVNamespace;
+  LOGIN_RATE_LIMIT: { limit(input: { key: string }): Promise<{ success: boolean }> };
+  API_RATE_LIMIT: { limit(input: { key: string }): Promise<{ success: boolean }> };
+  READ_RATE_LIMIT: { limit(input: { key: string }): Promise<{ success: boolean }> };
 
   // Optional vars via wrangler.toml [vars]
   // Cache reset time zone offset minutes (default Asia/Shanghai = 480)

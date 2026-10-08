@@ -17,6 +17,14 @@
 
 本仓库额外提供 Cloudflare Workers / Pages（TypeScript，D1 + KV）版本，适合在 Cloudflare 上运行与代理出站。
 
+### Workers 费用防护
+
+- 运行时不使用 Durable Objects。`wrangler.toml` 中 `do-v1` / `do-v2` 是历史迁移记录，保留它们防止旧部署重建已移除的 `AutoRegisterJob`，不是现有绑定。
+- 原生按 IP/机房限流：登录 10 次/分钟，API（含图片 WebSocket 握手）60 次/分钟，其他 Worker 请求 600 次/分钟。绑定缺失或故障时返回 503，达到额度返回 429。此计数不是跨机房全局硬上限，也不是账户账单硬封顶。
+- 图片 WebSocket 每连接共享 10 轮生成、120 秒生成时间预算，单轮上游超时最多 60 秒；失败也消耗轮数，停止/重启不重置预算，未完成的上游调用会阻止重叠启动。无可用 Token 时停止循环，不持续轮询。
+- 每日 KV 清理最多 10 批、每批 50 个键（共 500 个），保留原有 UTC+8 午夜定时任务与缓存到期机制。超出本次处理量的元数据留待后续清理。
+- 验证：`npm run typecheck`、`npm run test:cost-controls`。这些改动仅作用于 TypeScript Workers 版，不改变 Python/Docker 版。
+
 - 部署与配置说明：`README.cloudflare.md`
 - 一键部署工作流：`.github/workflows/cloudflare-workers.yml`
   - 一键部署前置条件：仓库需配置 `CLOUDFLARE_API_TOKEN` 与 `CLOUDFLARE_ACCOUNT_ID`。

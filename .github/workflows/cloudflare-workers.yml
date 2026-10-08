@@ -61,6 +61,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Test Cloudflare cost controls
+        run: npm run test:cost-controls
+
       - name: Ensure D1 + KV and generate wrangler.ci.toml
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
