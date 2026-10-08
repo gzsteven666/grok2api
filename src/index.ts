@@ -4,8 +4,15 @@ import { openAiRoutes } from "./routes/openai";
 import { mediaRoutes } from "./routes/media";
 import { adminRoutes } from "./routes/admin";
 import { runKvDailyClear } from "./kv/cleanup";
+import { limitRequest } from "./cost-controls";
 
 const app = new Hono<{ Bindings: Env }>();
+
+app.use("*", async (c, next) => {
+  const limited = await limitRequest(c.req.raw, c.env);
+  if (limited) return limited;
+  await next();
+});
 
 function getAssets(env: Env): Fetcher | null {
   const anyEnv = env as unknown as { ASSETS?: unknown };

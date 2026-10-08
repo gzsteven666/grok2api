@@ -15,11 +15,11 @@ async function deleteKeys(env: Env, keys: string[]): Promise<void> {
 }
 
 export async function runKvDailyClear(env: Env): Promise<{ deleted: number }> {
-  const batch = Math.min(500, Math.max(1, parseIntSafe(env.KV_CLEANUP_BATCH, 200)));
+  const batch = Math.min(50, Math.max(1, parseIntSafe(env.KV_CLEANUP_BATCH, 50)));
 
   let deleted = 0;
   // Cap work per scheduled run to avoid timeouts
-  for (let i = 0; i < 200; i++) {
+  for (let i = 0; i < 10; i++) {
     const rows = await listOldestRows(env.DB, null, null, batch);
     if (!rows.length) break;
     const keys = rows.map((r) => r.key);
@@ -41,4 +41,3 @@ export function nextLocalMidnightExpirationSeconds(now = nowMs(), tzOffsetMinute
   // Convert local-midnight back to UTC epoch seconds
   return Math.floor((next - offsetMs) / 1000);
 }
-

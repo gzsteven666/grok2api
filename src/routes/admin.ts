@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import type { Env } from "../env";
+import { createGenerationBudget } from "../cost-controls";
 import { requireAdminAuth } from "../auth";
 import {
   getSettings,
@@ -413,6 +414,7 @@ adminRoutes.get("/api/v1/admin/imagine/ws", async (c) => {
   let currentRunId = "";
   let sequence = 0;
   let running = false;
+  const generationBudget = createGenerationBudget();
 
   const send = (payload: Record<string, unknown>): boolean => {
     if (socketClosed) return false;
@@ -452,6 +454,8 @@ adminRoutes.get("/api/v1/admin/imagine/ws", async (c) => {
 
     void (async () => {
       while (!socketClosed && localToken === runToken) {
+        const timeoutMs = generationBudget.nextBatch();
+        if (!timeoutMs) break;
         let chosen: { token: string; token_type: "sso" | "ssoSuper" } | null = null;
         try {
           chosen = await selectBestToken(c.env.DB, "grok-imagine-1.0");
@@ -461,8 +465,7 @@ adminRoutes.get("/api/v1/admin/imagine/ws", async (c) => {
               message: "No available tokens. Please try again later.",
               code: "rate_limit_exceeded",
             });
-            await wsSleep(2000);
-            continue;
+            break;
           }
 
           const cookie = cf
@@ -475,6 +478,7 @@ adminRoutes.get("/api/v1/admin/imagine/ws", async (c) => {
             cookie,
             settings: settings.grok,
             aspectRatio,
+            timeoutMs,
           });
           if (socketClosed || localToken !== runToken) break;
 
@@ -535,7 +539,7 @@ adminRoutes.get("/api/v1/admin/imagine/ws", async (c) => {
         running = false;
         send({ type: "status", status: "stopped", run_id: runId });
       }
-    })();
+    })().finally(() => generationBudget.finish());
   };
 
   server.addEventListener("message", (event) => {
@@ -561,6 +565,10 @@ adminRoutes.get("/api/v1/admin/imagine/ws", async (c) => {
         return;
       }
       const ratio = resolveAspectRatio(String(payload.aspect_ratio ?? "2:3").trim());
+      if (!generationBudget.begin()) {
+        send({ type: "error", message: "Generation is busy or this connection's budget is exhausted.", code: "rate_limit_exceeded" });
+        return;
+      }
       stopRun(false);
       startRun(prompt, ratio);
       return;
